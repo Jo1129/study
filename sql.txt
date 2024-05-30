@@ -87,3 +87,124 @@ select * from
 ( select deptno , sal from emp ) 
 pivot ( sum(sal) for deptno in (10 , 20 , 30) );
 
+
+
+SELECT *
+ FROM order2
+ UNPIVOT ( 건수 for 아이템 in ( BICYCLE, CAMERA, NOTEBOOK ) );
+
+
+7. sum over
+select empno, deptno ,  ename , sal,  sum(sal) over(order by empno asc) 누적치
+from emp
+
+
+select empno, deptno ,  ename , sal,  sum(sal) over(order by empno rows between unbounded preceding  -- 제일 첫번째 행
+                                                                and current row) 누적치           -- 현재행
+from emp
+
+--비율
+select empno , ename , sal , ratio_to_report(sal) over() 비율  -- 원형그래프 참고 비율 컬럼 보여줌
+from emp
+
+-- 전체 금액
+select deptno , sum(sal)
+from emp 
+group by deptno
+
+union all 
+
+select to_number(null) as deptno ,sum(sal)
+from emp
+
+order by deptno asc
+
+-- 함수이용시
+select deptno , sum(sal)
+from emp
+group by rollup(deptno); -- 맨 하단행에 전체 합계
+
+
+select deptno , sum(sal)
+from emp
+group by CUBE(deptno);  -- 맨 상단에 전체 합계
+
+select to_char(hiredate, 'RRRR') , sum(sal)
+from emp
+group by CUBE(to_char(hiredate, 'RRRR'))
+
+
+--그룹핑 
+select deptno , job , sum(sal)
+from emp
+group by grouping sets ( (deptno) , 
+                         (job) , 
+                          ())   --전체
+
+select to_char(hiredate, 'RRRR') , job,  sum(sal)
+from emp
+group by grouping sets ( (to_char(hiredate , 'RRRR')) , (job)  )
+
+--넘버링 row_number
+select empno , ename ,sal , rank() over(order by sal desc)as rank , 
+                           dense_rank() over(order by sal desc) as dense_rank  ,
+                          row_number() over(order by sal desc)번호
+from emp
+
+--정렬 rownum
+select ename , sal , row_number() over(order by ename desc) 
+from emp
+where sal between 1000 and 3000;
+
+
+select rownum  , empno , ename , job , sal
+from emp
+where rownum <=5
+
+-- simple top-n queries
+select empno , ename , job , sal 
+from emp
+order by sal desc fetch first 4 rows only;
+
+
+
+--union all 중복제거x 
+--UNION 사용 시 중복을 제거하기 위하여 데이터를 모두 검사하기 때문에 속도가 느리다.
+select deptno , sum(sal)
+from emp 
+group by deptno
+
+union all 
+
+select to_number(null) as deptno ,sum(sal)
+from emp
+
+order by deptno asc
+
+
+-- 교집합 intersect
+
+select ename,sal,job,deptno
+from emp 
+where deptno in  (10,20)
+
+
+intersect 
+
+select ename,sal,job,deptno
+from emp 
+where deptno in  (20,30)
+
+
+
+--차집합 A-B 
+
+select ename,sal,job,deptno
+from emp 
+where deptno in (10,20)
+
+MINUS 
+
+select ename,sal,job,deptno
+from emp 
+where deptno in (20,30)
