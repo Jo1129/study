@@ -5,7 +5,8 @@ explain plan for
 
 select * from emp where sal like '30%';
 
-select  * from table(dbms_xplan.display);
+
+
 
 
 2.group by 할때
@@ -208,3 +209,239 @@ MINUS
 select ename,sal,job,deptno
 from emp 
 where deptno in (20,30)
+
+
+-- 단일행 서브쿼리 : 서브에서 메인쿼리로 하나의 값 리턴  = != ^= <> > < >= <=
+
+select ename , sal
+from emp
+where sal >
+(select sal
+from emp 
+where ename = 'JONES')     -- 결과값이 단일
+
+
+-- 다중행 서브쿼리  : 서브에서 메인쿼리로 다중 값 리턴  in not in >all <all >any <any
+select ename , sal
+from emp
+where sal in                 -- =은 안됨 다중행 서브쿼리
+(select sal
+from emp 
+where job = 'SALESMAN')    -- 결과값이 다행
+
+
+-- not in 다중행 서브쿼리에 null이 있으면 출력이 안됨 T and T and null
+select ename , mgr
+from emp
+where empno  not in ( 
+select mgr from emp )
+
+select ename , mgr
+from emp
+where empno  not in ( 
+select mgr from emp
+where mgr is not null )  -- is not null
+
+select ename , mgr
+from emp
+where empno  not in ( 
+select nvl(mgr, -1) 
+        from emp
+where mgr is not null )  
+
+-- exits  메인쿼리부터 수행
+
+select *
+from dept d -- 1. deptno 10
+where  exists ( select * from emp e where e.deptno = d.deptno  )  -- 2. deptno 10 비교
+
+select *
+from dept d -- 1. deptno 10
+where  not exists ( select * from emp e where e.deptno = d.deptno  )
+
+
+
+-- 그룹함수 검색조건 having 서브쿼리
+select job , sum(sal)
+from emp
+group by job
+having sum(sal) >=
+(
+
+select sum(sal)
+from emp
+where job = 'SALESMAN'
+
+ )
+
+
+select ename , hiredate
+from (
+        select  ename , hiredate , rank() over(order by hiredate asc) rnk
+        from emp
+        where job = 'SALESMAN' )
+where rnk = 1
+
+
+
+-이거 실행안됨
+select ename ,  -- 다중행
+sal ,      --다중행
+max(sal) , -- 단일행
+ min(sal)
+
+select ename , 
+sal , 
+(
+        select  max(sal) 
+        from emp
+        where job = 'SALESMAN' ) ,
+(
+        select  min(sal) 
+        from emp
+        where job = 'SALESMAN' )
+
+from emp
+where job = 'SALESMAN'
+
+
+select 서브
+from 서브
+where 서브
+group by 서브x
+having 서브
+order by 서브
+ 
+
+ -- merge
+
+merge into emp e
+using dept d
+on ( e.deptno = d.deptno ) 
+when matched then
+update set e.loc = d.loc
+
+
+merge into emp e
+using dept d                --dept 사용
+on ( e.deptno = d.deptno )   -- e.deptno 와 같다면
+when matched then            -- 매치가되면 
+update set e.loc = d.loc
+when not matched then
+insert (e.empno , e.deptno , e.loc) values (1111 , d.deptno , d.loc);
+
+
+--select for update   select 조회중에 rock 걸기 갱신 못하게
+
+-- insert 서브쿼리
+
+create table emp2 as
+select * from emp
+where 1=2   --데이터 안넣음 
+
+
+insert into emp2(empno , ename , sal ,deptno)
+select empno , ename , sal ,deptno
+from emp
+where deptno = 10
+
+
+-- update 서브쿼리
+update emp
+set sal  = ( select sal 
+                from emp 
+                where ename = 'ALLEN' )
+where job = 'SALEMAN'
+
+-- delete 서브쿼리
+delete from emp
+where sal > ( select sal from emp where ename = 'SCOTT')
+
+--merge 서브쿼리
+merge into dept d
+using (  select deptno , sum(sal) as sunsal
+from emp
+group by deptno ) v
+on ( d.deptno = v.deptno )
+when matched then 
+update set d.sumsal =  v.sunsal
+
+
+-- 계층형 
+
+select empno , rpad(' ' , level*3) || ename , sal , job , mgr 
+from emp
+START WITH ename = 'KING'
+connect by prior empno = mgr
+
+
+select empno , rpad(' ' , level*3) || ename , sal , job , mgr , level
+from emp
+where level = 2
+START WITH ename = 'KING'
+connect by prior empno = mgr 
+
+
+
+select empno , rpad(' ' , level*3) || ename , sal , job , mgr , level
+from emp
+START WITH ename = 'KING'
+connect by prior empno = mgr and ename != 'BLAKE'       -- 하위 모두 제거
+
+--계층형 order siblings by 
+
+select ename , level , sal  , lpad(' ' , level*2)||ename , job from emp
+START WITH ename = 'KING'
+CONNECT BY PRIOR empno = mgr 
+order siblings by sal desc
+
+
+select ename , level , sal  , lpad(' ' , level*2)||ename , job from emp
+start with ename = 'BLAKE'
+connect by PRIOR empno = mgr  
+order SIBLINGS by sal asc
+
+--계층형 가로 sys_connect_by_pat
+select ename , sys_connect_by_path(ename , '/') as path
+from emp
+start with ename = 'KING'
+CONNECT by prior empno = mgr;
+
+-- 임시테이블 생성 commit 시 데이터 삭제
+
+create global TEMPORARY table emp37(
+EMPNO number(10) ,
+ENAME varchar2(20),
+SAL   number(10,2),
+HIREDATE  date )
+on commit delete rows -- 커밋하면 데이터 지워라
+on commit preserve rows -- 세션을 종료하면 데이터를 지워라
+
+-- view
+
+create view emp_view 
+as 
+ select * from emp
+ where job = 'MANAGER';
+
+
+-- rowid
+select rowid , empno , ename 
+from emp
+
+파일번호+ 블록번호 + rowid 물리적주소
+
+-- index rowid
+select sal , rowid
+from emp
+where sal >= 0;
+
+파일번호+ 블록번호 + rowid 물리적주소
+
+--sequence
+
+create sequence seq2
+start with 1
+maxvalue 100
+INCREMENT by 1
+nocycle;           --싸이클 없다
